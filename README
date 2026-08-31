@@ -1,0 +1,19 @@
+# COSC1114 Project 1 - README
+
+Student: Adam Dimkovski (s4168373)
+
+## Tasks Completed
+- Task 1 (Multithreaded multiple file copying): COMPLETE
+- Task 2 Subtask 1 (Reader/writer threads + shared queue): NOT STARTED
+- Task 2 Subtask 2 (Locks): NOT STARTED
+- Task 2 Subtask 3 (Avoid busy waiting): NOT STARTED
+
+## How to Compile
+make all
+
+## How to Run
+./mmcopier n source_dir destination_dir
+Example: ./mmcopier 3 source_dir destination_dir
+
+## Notes
+- destination_dir must already exist before running.
