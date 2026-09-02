@@ -19,6 +19,8 @@ ofstream destinationFile; // Where the writer writes to
 // A variable to say when the readers are finished reading
 bool readingFinished = false;
 
+pthread_mutex_t queueMutex; // ensure the safety of thread by locking dataQueue and readingFinished access
+
 // Reader thread
 void* reader(void* data){
     int id = *((int*)data); // Giving an ID to each reader thread
@@ -36,11 +38,24 @@ void* reader(void* data){
 
         string block(buffer, bytesRead); // Store bytes read from the file as a string block for the shared queue
 
+        // Lock before accessing shared queue
+        if (pthread_mutex_lock(&queueMutex) != 0){
+            fprintf(stderr, "Reader %d: mutex lock failed\n", id);
+            break;
+        } 
+
         // Checks whether the queue has space for more blocks then prints when block is added
         if (dataQueue.size() < MAX_QUEUE_SIZE){
             dataQueue.push(block);
             printf("Reader %d added data\n", id);
         }
+
+        // Unlock queue as soon as operations complete
+        if (pthread_mutex_unlock(&queueMutex) != 0){
+            fprintf(stderr, "Reader %d: mutex unlock failed\n", id);
+            break;
+        }
+
     }
 
     printf("Reader %d finished\n", id); // Prints when reader thread is finished
@@ -53,6 +68,12 @@ void* writer(void* data){
     printf("Writer %d started\n", id);
     while (true){
 
+        // Lock before reading or updating the shared queue
+        if (pthread_mutex_lock(&queueMutex) != 0){
+            fprintf(stderr, "Writer %d: mutex lock failed\n", id);
+            break;
+        }
+
         // Checks whether the queue has data
         if (!dataQueue.empty()){
 
@@ -60,13 +81,32 @@ void* writer(void* data){
             string block = dataQueue.front();
             dataQueue.pop();
 
+            // Unlock before the slow file write so that other threads are able to utilise queue aswell
+            if (pthread_mutex_unlock(&queueMutex) != 0){
+                fprintf(stderr, "Writer %d: mutex unlock failed\n", id);
+                break;
+            }
+
             // Write it to the destination
             destinationFile.write(block.c_str(), block.size());
             printf("Writer %d wrote data\n", id);
         }
 
-        else if (readingFinished){
-            break;
+        else {
+            
+            // Queue is empty: check the shared finished flag before unlock
+            bool done = readingFinished;
+
+            // Unlock before proceeding to decision
+            if (pthread_mutex_unlock(&queueMutex) != 0){
+                fprintf(stderr, "Writer %d: mutex unlock failed\n", id);
+                break;
+            }
+
+            // Exit loop if readers are complete and queue is empty
+            if (done) {
+                break;
+            }
         }
     }
 
@@ -108,24 +148,36 @@ int main(int argc, char* argv[]){
         return 1;
     }
 
+    // Initialise mutex before creating additonal threads, and check return value
+    if (pthread_mutex_init(&queueMutex, nullptr) != 0) {
+        fprintf(stderr, "Failed to initialise mutex\n");
+        return 1;
+    }
+
     //Thread arrays
-    pthread_t readers[n];
-    pthread_t writers[n];
+    pthread_t readers[10];
+    pthread_t writers[10];
 
     // IDs for each thread
-    int readerIDs[n];
-    int writerIDs[n];
+    int readerIDs[10];
+    int writerIDs[10];
 
     // Create reader threads
     for (int i = 0; i < n; i++){
         readerIDs[i] = i + 1;
-        pthread_create(&readers[i], nullptr, reader, &readerIDs[i]);
+        if (pthread_create(&readers[i], nullptr, reader, &readerIDs[i]) != 0){
+            fprintf(stderr, "Failed to create reader thread %d\n", i + 1);
+            return 1;
+        }
     }
 
     // Create writer threads
     for (int i = 0; i < n; i++){
         writerIDs[i] = i + 1;
-        pthread_create(&writers[i], nullptr, writer, &writerIDs[i]);
+        if (pthread_create(&writers[i], nullptr, writer, &writerIDs[i]) != 0){
+            fprintf(stderr, "Failed to create writer thread %d\n", i + 1);
+            return 1;
+        }
     }
 
     // Wait for all readers to finish
@@ -134,11 +186,25 @@ int main(int argc, char* argv[]){
     }
     
     // Tell writers that no more data will be added
+    if (pthread_mutex_lock(&queueMutex) != 0){
+        fprintf(stderr, "main: mutex lock failed\n");
+        return 1;
+    }
     readingFinished = true;
+    if (pthread_mutex_unlock(&queueMutex) != 0){
+        fprintf(stderr, "main: mutex unlock failed\n");
+        return 1;
+    }
 
     // Wait for all writers to finish
     for (int i = 0; i < n; i++){
         pthread_join(writers[i], nullptr);
+    }
+
+    // Destroy mutex after all threads complete
+    if (pthread_mutex_destroy(&queueMutex) != 0){
+        fprintf(stderr, "Failed to destroy mutex\n");
+        return 1;
     }
 
     // Close files
