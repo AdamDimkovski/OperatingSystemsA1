@@ -7,42 +7,44 @@
 
 using namespace std;
 
-#define QUEUE_SIZE 20
-#define BUFFER_SIZE 4096
+// Setting constants
+#define MAX_QUEUE_SIZE 20 // max number of blocks to be stored in the queue
+#define BUFFER_SIZE 4096 // number of bytes each reader can attempt to read
 
-queue<string> dataQueue;
+// Shared queue and files
+queue<string> dataQueue; //Shared queue to transfer from reader to writer threads
+ifstream sourceFile; // Where the reader reads from
+ofstream destinationFile; // Where the writer writes to 
 
-// Shared source and destination files
-ifstream sourceFile;
-ofstream destinationFile;
-
+// A variable to say when the readers are finished reading
 bool readingFinished = false;
 
 // Reader thread
 void* reader(void* data){
-    int id = *((int*)data);
-    printf("Reader %d started\n", id);
+    int id = *((int*)data); // Giving an ID to each reader thread
+    printf("Reader %d started\n", id); // Prints when each reader thread starts
     
     while (true){
         char buffer[BUFFER_SIZE];
 
-        sourceFile.read(buffer, BUFFER_SIZE);
-        streamsize bytesRead = sourceFile.gcount();
-
-        if (bytesRead <= 0){
+        sourceFile.read(buffer, BUFFER_SIZE); // Reads BUFFER_SIZE bytes into buffer from sourcefile
+        streamsize bytesRead = sourceFile.gcount(); // How many bytes are read 
+        
+        if (bytesRead <= 0){ // Checks if their are blocks left in the file if so stops reading
             break;
         }
 
-        string block(buffer, bytesRead);
-        if (dataQueue.size() < QUEUE_SIZE){
-            dataQueue.push(block);
+        string block(buffer, bytesRead); // Store bytes read from the file as a string block for the shared queue
 
+        // Checks whether the queue has space for more blocks then prints when block is added
+        if (dataQueue.size() < MAX_QUEUE_SIZE){
+            dataQueue.push(block);
             printf("Reader %d added data\n", id);
         }
     }
 
-    printf("Reader %d finished\n", id);
-    pthread_exit(NULL);
+    printf("Reader %d finished\n", id); // Prints when reader thread is finished
+    pthread_exit(nullptr);
 }
 
 // Writer thread
@@ -51,7 +53,7 @@ void* writer(void* data){
     printf("Writer %d started\n", id);
     while (true){
 
-        // Check whether the queue has data
+        // Checks whether the queue has data
         if (!dataQueue.empty()){
 
             // Get the first item and Remove it
@@ -69,7 +71,7 @@ void* writer(void* data){
     }
 
     printf("Writer %d finished\n", id);
-    pthread_exit(NULL);
+    pthread_exit(nullptr);
 }
 
 int main(int argc, char* argv[]){
@@ -117,25 +119,26 @@ int main(int argc, char* argv[]){
     // Create reader threads
     for (int i = 0; i < n; i++){
         readerIDs[i] = i + 1;
-        pthread_create(&readers[i], NULL, reader, &readerIDs[i]);
+        pthread_create(&readers[i], nullptr, reader, &readerIDs[i]);
     }
 
     // Create writer threads
     for (int i = 0; i < n; i++){
         writerIDs[i] = i + 1;
-        pthread_create(&writers[i], NULL, writer, &writerIDs[i]);
+        pthread_create(&writers[i], nullptr, writer, &writerIDs[i]);
     }
 
     // Wait for all readers to finish
     for (int i = 0; i < n; i++){
-        pthread_join(readers[i], NULL);
+        pthread_join(readers[i], nullptr);
     }
+    
     // Tell writers that no more data will be added
     readingFinished = true;
 
     // Wait for all writers to finish
     for (int i = 0; i < n; i++){
-        pthread_join(writers[i], NULL);
+        pthread_join(writers[i], nullptr);
     }
 
     // Close files
