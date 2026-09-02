@@ -4,7 +4,7 @@ Students: Adam Dimkovski (s4168373), Fateh Randhawa (s4169683), Devyesh Shivnith
 
 ## Tasks Completed
 - Task 1 (Multithreaded multiple file copying): COMPLETE
-- Task 2 Subtask 1 (Reader/writer threads + shared queue): NOT STARTED
+- Task 2 Subtask 1 (Reader/writer threads + shared queue): STARTED (not finished)
 - Task 2 Subtask 2 (Locks): NOT STARTED
 - Task 2 Subtask 3 (Avoid busy waiting): NOT STARTED
 
