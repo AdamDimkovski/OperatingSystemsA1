@@ -35,7 +35,12 @@ void* reader(void* data){
     
     while (true){
         char buffer[BUFFER_SIZE];
-        pthread_mutex_lock(&readMutex);
+    
+        if(pthread_mutex_lock(&readMutex) != 0){
+            fprintf(stderr, "Reader %d: mutex lock failed\n", id);
+            break;
+        };
+
         sourceFile.read(buffer, BUFFER_SIZE); // Reads BUFFER_SIZE bytes into buffer from sourcefile
         streamsize bytesRead = sourceFile.gcount(); // How many bytes are read 
         
@@ -45,8 +50,6 @@ void* reader(void* data){
         }
 
         string block(buffer, bytesRead); // Store bytes read from the file as a string block for the shared queue
-        printf("thread %d read the following data: ", id);
-        cout << block << endl;
 
         // Lock before accessing shared queue
         if (pthread_mutex_lock(&queueMutex) != 0){
@@ -61,14 +64,21 @@ void* reader(void* data){
         }
         dataQueue.push(block);
         printf("Reader %d added data\n", id);
-        pthread_cond_signal(&addSignal);
+        if(pthread_cond_signal(&addSignal) != 0){
+            fprintf(stderr, "Reader %d: addSignal failed\n", id);
+            break;
+
+        }
 
         // Unlock queue as soon as operations complete
         if (pthread_mutex_unlock(&queueMutex) != 0){
             fprintf(stderr, "Reader %d: mutex unlock failed\n", id);
             break;
         }
-        pthread_mutex_unlock(&readMutex);
+        if(pthread_mutex_unlock(&readMutex) != 0){
+            fprintf(stderr, "Reader %d: mutex unlock failed\n", id);
+            break;
+        }
 
     }
 
@@ -81,11 +91,15 @@ void* writer(void* data){
     int id = *((int*)data);
     printf("Writer %d started\n", id);
     while (true){
-        pthread_mutex_lock(&writeMutex);
+
+        if (pthread_mutex_lock(&writeMutex) != 0){
+            fprintf(stderr, "Writer %d: writeMutex lock failed\n", id);
+            break;
+        }
 
         // Lock before reading or updating the shared queue
         if (pthread_mutex_lock(&queueMutex) != 0){
-            fprintf(stderr, "Writer %d: mutex lock failed\n", id);
+            fprintf(stderr, "Writer %d: queueMutex lock failed\n", id);
             break;
         }
 
@@ -93,20 +107,32 @@ void* writer(void* data){
         while(dataQueue.empty()){
             if(readingFinished){
                 if (pthread_mutex_unlock(&queueMutex) != 0){
-                    fprintf(stderr, "Writer %d: mutex unlock failed\n", id);
+                    fprintf(stderr, "Writer %d: queueMutex unlock failed\n", id);
                     break;
                 }
-
-                pthread_mutex_unlock(&writeMutex);
+                if(pthread_mutex_unlock(&writeMutex) != 0){
+                    fprintf(stderr, "Writer %d: writeMutex unlock failed\n", id);
+                    break;
+                }
                 goto threadFinished;
             }
             printf("Writed %d going to sleep\n", id);
-            pthread_cond_wait(&addSignal, &queueMutex);
+
+            if(pthread_cond_wait(&addSignal, &queueMutex) != 0){
+                fprintf(stderr, "Writer %d: addSignal wait failed\n", id);
+                break;
+            };
         }
 
             string block = dataQueue.front();
             dataQueue.pop();
-            pthread_cond_signal(&removeSignal);
+
+            if(pthread_cond_signal(&removeSignal) != 0){
+                fprintf(stderr, "Writer %d: addSignal wait failed\n", id);
+                break;
+            };
+
+
 
             // Unlock before the slow file write so that other threads are able to utilise queue aswell
             if (pthread_mutex_unlock(&queueMutex) != 0){
@@ -116,7 +142,12 @@ void* writer(void* data){
 
             // Write it to the destination
             destinationFile.write(block.c_str(), block.size());
-            pthread_mutex_unlock(&writeMutex);
+
+            if (pthread_mutex_unlock(&writeMutex) != 0){
+                fprintf(stderr, "Writer %d: writeMutex unlock failed\n", id);
+                break;
+            }
+            
             printf("Writer %d wrote data\n", id);
     }
     threadFinished:
@@ -214,7 +245,11 @@ int main(int argc, char* argv[]){
 
     readingFinished = true;
     //wake up all consumer threads so that they can figure out that were finished
-    pthread_cond_broadcast(&addSignal);
+    
+    if(pthread_cond_broadcast(&addSignal) != 0){
+        fprintf(stderr, "main: addSignal broadcast failed\n");
+        return 1;
+    }
     
     if (pthread_mutex_unlock(&queueMutex) != 0){
         fprintf(stderr, "main: mutex unlock failed\n");
@@ -224,12 +259,22 @@ int main(int argc, char* argv[]){
     // Wait for all writers to finish
     printf("begin wait for all threads\n");
     for (int i = 0; i < n; i++){
-        pthread_join(writers[i], nullptr);
+        if(pthread_join(writers[i], nullptr) != 0){
+
+            fprintf(stderr, "main: pthread join failed\n");
+            return 1;
+        }
     }
 
     printf("success\n");
-    // Destroy mutex after all threads complete
-    if (pthread_mutex_destroy(&queueMutex) != 0){
+    // Destroy mutexes and signals after all threads complete
+    if (
+           pthread_mutex_destroy(&queueMutex) != 0
+        || pthread_mutex_destroy(&readMutex) != 0
+        || pthread_mutex_destroy(&writeMutex) != 0
+        || pthread_cond_destroy(&addSignal) != 0
+        || pthread_cond_destroy(&removeSignal) != 0
+    ){
         fprintf(stderr, "Failed to destroy mutex\n");
         return 1;
     }
