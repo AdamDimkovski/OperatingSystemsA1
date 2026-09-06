@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
     // Converts n string to int
     int n = atoi(argv[1]);
 
-    // Checks to see if N is NOT between 2 and 10
+    // Checks to see if N is NOT between 2 and 10 (Only goes uo to 10 files)
     if(!(n >= 2 && n <= 10)) {
         std::cerr << "Error: N is not within the range of [2,10]\n";
         return EXIT_FAILURE;    

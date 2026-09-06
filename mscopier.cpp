@@ -267,6 +267,7 @@ int main(int argc, char* argv[]){
     }
 
     printf("success\n");
+    
     // Destroy mutexes and signals after all threads complete
     if (
            pthread_mutex_destroy(&queueMutex) != 0
