@@ -3,17 +3,36 @@
 Students: Adam Dimkovski (s4168373), Fateh Randhawa (s4169683), Devyesh Shivnith Nadan (s4172329), Thompson Slee (s4159977)
 
 ## Tasks Completed
-- Task 1 (Multithreaded multiple file copying): COMPLETE
-- Task 2 Subtask 1 (Reader/writer threads + shared queue): STARTED (not finished)
-- Task 2 Subtask 2 (Locks): NOT STARTED
-- Task 2 Subtask 3 (Avoid busy waiting): NOT STARTED
+- Task 1 (Multithreaded multiple file copying): COMPLETED
+- Task 2 Subtask 1 (Reader/writer threads + shared queue): COMPLETED
+- Task 2 Subtask 2 (Locks): COMPLETED
+- Task 2 Subtask 3 (Avoid busy waiting): COMPLETED
 
 ## How to Compile
-make all
+make mscopier.cpp
+make mmcopier.cpp
 
 ## How to Run
+
+## Task 1:
 ./mmcopier n source_dir destination_dir
 Example: ./mmcopier 3 source_dir destination_dir
 
+## Task 2:
+1) make clean
+2) make mscopier
+3) ./generate_text.sh n > source.txt
+4) ./mscopier n source.txt destination.txt
+
+Example:
+* If you want to generate a new text file from a source file with 500 random lines and 4 writer/reader threads:
+make clean
+make mscopier
+./generate_text.sh 500 > source.txt (Takes 500 unique lines from dictionary file and print to stdout)
+./mscopier 4 source.txt destination.txt (spins up 4 reader and writer threads, cordinates them via shared queue, mutexes and condition variables you implemeneted)
+
 ## Notes
 - destination_dir must already exist before running.
+- source_dir exist and contains source1.txt through to source10.txt
+- Must run generate_text.sh before i can run rest of mscopier commands (See task 2 example for more context)
+- Makefile is setup, make (mmcopier.cpp / mscopier.cpp) compiles addressed file and make clean, will clean both compilations
