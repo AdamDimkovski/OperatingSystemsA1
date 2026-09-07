@@ -39,7 +39,7 @@ void *thread_function(void *arg) {
     // If thread doesnt exist, return error message
     if (src == nullptr) {
         std::cerr << "Error: could not open source file: " << data->source_path << "\n";
-        return nullptr;
+        return (void*)-1;
     }
 
     // Writes a source path file from a FILE object into a destination path file
@@ -49,7 +49,7 @@ void *thread_function(void *arg) {
     if (dst == nullptr) {
         std::cerr << "Error: could not open destination file: " << data->dest_path << "\n";
         fclose(src);
-        return nullptr;
+        return (void*)-1;
     }
 
     // Copy loop to Copy a file from source to destination
@@ -61,8 +61,15 @@ void *thread_function(void *arg) {
     }
 
     // Must be closed to prevent any weird returns
-    fclose(src);
-    fclose(dst);
+    if(fclose(src) != 0) {
+        std::cerr << "Error: Cannot close source file: " << data->source_path << "\n";
+        return (void*)-1;
+    }
+
+    if(fclose(dst) != 0) {
+        std::cerr << "Error: Cannot close destination file: " << data->dest_path << "\n";
+        return (void*)-1;
+    }
 
     return nullptr;
 }
@@ -129,7 +136,20 @@ int main(int argc, char *argv[]) {
 
     // Thread Joining Loop
     for (int i = 0; i < n; i++) {
-        pthread_join(threadHandleArr[i], nullptr);
+        void *thread_result;
+        int join_result = pthread_join(threadHandleArr[i], &thread_result);
+
+        // handles the failure of joining thread i with the join result code
+        if (join_result != 0) {
+            std::cerr << "Error: pthread_join failed for thread " << i << " with code " << join_result << "\n";
+            return EXIT_FAILURE;
+        }
+
+        // handles failure for a thread to copy its file
+        if (thread_result != nullptr) {
+            std::cerr << "Error: thread " << i << " failed to copy its file\n";
+            return EXIT_FAILURE;
+        }
     }
 
     return 0;
